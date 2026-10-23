@@ -10,6 +10,8 @@ A responsive static stock research dashboard hosted with GitHub Pages. Built wit
 - Five-year discounted cash-flow (DCF) calculator with sensitivity analysis
 - Interactive due-diligence checklist
 - Add-stock form and CSV watchlist export
+- Supabase email/password registration, Google sign-in, and password-reset email
+- Per-account persistence for watchlists, DCF assumptions, checklist progress, and research notes/reports
 - Responsive layout and light/dark theme
 
 ## Deploy to GitHub Pages
@@ -23,5 +25,8 @@ This repository includes a GitHub Actions workflow at `.github/workflows/pages.y
 ## Custom domain
 The site uses `https://stock-due-diligence-web.chatgpt-plugin.public.mesprk.com/`. The DNS provider for `mesprk.com` must have a CNAME record for `stock-due-diligence-web.chatgpt-plugin.public` pointing to `ezhilrean.github.io`. Configure HTTPS in **Settings → Pages** once GitHub Pages verifies the domain.
 
+## Supabase authentication and database
+See [SETUP.md](SETUP.md) for the one-time Supabase setup. Apply [supabase/schema.sql](supabase/schema.sql), configure `supabase-config.js` with the Supabase project URL and public anon/publishable key, enable Email and Google providers, and allow the custom domain in Supabase Auth URL settings. Login and database access will remain unavailable until this setup is completed. Never commit a service-role or secret key.
+
 ## Important data note
-The included stock prices, financial metrics, and quality scores are illustrative demo values, not live market data or investment recommendations. New stocks and checklist selections are stored only in the current page session and are not persisted to a database.
+The included stock prices, financial metrics, and quality scores are illustrative demo values, not live market data or investment recommendations. User-added data is persisted to Supabase once the project is configured. Row Level Security policies restrict each account to its own records.
