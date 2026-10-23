@@ -40,7 +40,7 @@ body.authenticated .auth-shell{display:none}body.authenticated #app-shell{displa
     <p class="muted" id="auth-subtitle">Sign in to access your saved watchlist, valuations, notes, and reports.</p>
     <form id="auth-form">
       <div id="auth-name-wrap" class="fieldwrap auth-field" hidden><label for="auth-name">Name</label><input class="field" id="auth-name" autocomplete="name" placeholder="Your name"></div>
-      <div class="fieldwrap auth-field"><label for="auth-email">Email</label><input class="field" id="auth-email" type="email" autocomplete="email" required placeholder="you@example.com"></div>
+      <div id="auth-email-wrap" class="fieldwrap auth-field"><label for="auth-email">Email</label><input class="field" id="auth-email" type="email" autocomplete="email" required placeholder="you@example.com"></div>
       <div class="fieldwrap auth-field"><label for="auth-password">Password</label><input class="field" id="auth-password" type="password" autocomplete="current-password" minlength="8" required placeholder="At least 8 characters"></div>
       <button id="auth-submit" class="btn primary auth-submit" type="submit">Sign in</button>
     </form>
