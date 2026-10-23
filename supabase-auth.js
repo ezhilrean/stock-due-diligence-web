@@ -26,15 +26,18 @@
   }
   function setMode(next) {
     mode=next;
-    const signup=mode==='signup';
-    $('auth-title').textContent=signup?'Create your account':'Welcome back';
-    $('auth-subtitle').textContent=signup?'Create a private workspace for your investment research.':'Sign in to access your saved watchlist, valuations, notes, and reports.';
+    const signup=mode==='signup', recovery=mode==='recovery';
+    $('auth-title').textContent=signup?'Create your account':recovery?'Set a new password':'Welcome back';
+    $('auth-subtitle').textContent=signup?'Create a private workspace for your investment research.':recovery?'Choose a new password for your account.':'Sign in to access your saved watchlist, valuations, notes, and reports.';
     $('auth-name-wrap').hidden=!signup;
+    $('auth-email-wrap').hidden=recovery;
+    $('auth-email').required=!recovery;
     $('auth-name').required=signup;
-    $('auth-password').autocomplete=signup?'new-password':'current-password';
-    $('auth-submit').textContent=signup?'Create account':'Sign in';
-    $('auth-toggle').textContent=signup?'I already have an account':'Create an account';
-    $('auth-reset').hidden=signup;
+    $('auth-password').autocomplete=signup||recovery?'new-password':'current-password';
+    $('auth-submit').textContent=signup?'Create account':recovery?'Update password':'Sign in';
+    $('auth-toggle').hidden=recovery;
+    $('google-signin').hidden=recovery;
+    $('auth-reset').hidden=signup||recovery;
     message('');
   }
   function fail(error) { message(error?.message || 'Something went wrong. Please try again.',true); }
@@ -125,7 +128,10 @@
       e.preventDefault();const email=$('auth-email').value.trim(),password=$('auth-password').value;
       $('auth-submit').disabled=true;message(mode==='signup'?'Creating account…':'Signing in…');
       try {
-        if(mode==='signup') {
+        if(mode==='recovery') {
+          const {error}=await client.auth.updateUser({password});if(error)throw error;
+          await client.auth.signOut();user=null;showAuth();setMode('login');message('Password updated. Sign in with your new password.');
+        } else if(mode==='signup') {
           const {data,error}=await client.auth.signUp({email,password,options:{data:{full_name:$('auth-name').value.trim()},emailRedirectTo:location.origin+location.pathname}});
           if(error)throw error;
           if(data.session) await enterSession(data.user);
@@ -153,7 +159,9 @@
     $('quick').addEventListener('change',()=>save(persistChecklist));
     ['fcf','growth','wacc','terminal','cash','shares','market'].forEach(id=>$(id).addEventListener('change',()=>save(persistDcf)));
     const {data:{session},error}=await client.auth.getSession();if(error){fail(error);showAuth();return;}
-    if(session)await enterSession(session.user);else showAuth();
+    const recoveryLink=new URLSearchParams(location.hash.replace(/^#/,'')).get('type')==='recovery';
+    if(recoveryLink){showAuth();setMode('recovery');}
+    else if(session)await enterSession(session.user);else showAuth();
     client.auth.onAuthStateChange((event,session)=>{if(session&&(!user||user.id!==session.user.id))setTimeout(()=>enterSession(session.user),0);else if(!session){user=null;showAuth();}});
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
