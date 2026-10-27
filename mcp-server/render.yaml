@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: stock-due-diligence-mcp
+    runtime: docker
+    dockerfilePath: ./mcp-server/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: SEC_USER_AGENT
+        sync: false
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "30"
