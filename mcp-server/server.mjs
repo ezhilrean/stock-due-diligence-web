@@ -98,6 +98,7 @@ function buildServer() {
     "search_sec_company",
     "Find a US public company by ticker symbol or company name using the SEC's public company ticker list. Returns SEC CIK and matched identifiers, not investment advice.",
     { query: z.string().min(1).max(100).describe("Company ticker or name, e.g. AAPL or Apple") },
+    { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     async ({ query }) => {
       try {
         const rows = await getTickerRows();
@@ -130,6 +131,7 @@ function buildServer() {
         "LongTermDebtCurrent", "LongTermDebtNoncurrent", "NetCashProvidedByUsedInOperatingActivities"
       ])).max(11).optional().describe("Optional list of common US-GAAP concepts; defaults to core financial metrics")
     },
+    { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     async ({ cik, concepts }) => {
       try {
         const paddedCik = cik.padStart(10, "0");
@@ -202,6 +204,7 @@ function buildServer() {
       market: z.enum(["US", "India", "Other", "Unknown"]).default("Unknown"),
       focus: z.enum(["full", "financials", "governance", "fraud_and_legal", "valuation", "cybersecurity"]).default("full")
     },
+    { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     async ({ company, market, focus }) => {
       const sections = {
         financials: [
