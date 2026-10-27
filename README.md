@@ -30,3 +30,8 @@ See [SETUP.md](SETUP.md) for the one-time Supabase setup. Apply [supabase/schema
 
 ## Important data note
 The included stock prices, financial metrics, and quality scores are illustrative demo values, not live market data or investment recommendations. User-added data is persisted to Supabase once the project is configured. Row Level Security policies restrict each account to its own records.
+
+
+## ChatGPT plugin integration
+
+This branch also contains the hosted read-only MCP service used by the separate plugin repository. See [MCP-PLUGIN-INTEGRATION.md](MCP-PLUGIN-INTEGRATION.md) for the repository boundary, three tool names, validation commands, and endpoint setup. Keep the live MCP implementation in this repository and the plugin manifests/skills/package builder in `ezhilrean/stock-due-diligence` on `feature/sec-edgar-improvements`.
