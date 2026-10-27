@@ -19,6 +19,12 @@ app.use((req, res, next) => {
   if (req.path !== "/mcp") return next();
   const key = req.ip || req.socket.remoteAddress || "unknown";
   const now = Date.now();
+  // Bound memory when a service receives traffic from many transient clients.
+  if (ipBuckets.size > 5000) {
+    for (const [ip, entry] of ipBuckets) {
+      if (now - entry.start >= 60_000) ipBuckets.delete(ip);
+    }
+  }
   const bucket = ipBuckets.get(key) || { start: now, count: 0 };
   if (now - bucket.start >= 60_000) {
     bucket.start = now;
@@ -98,14 +104,21 @@ function buildServer() {
     "search_sec_company",
     "Find a US public company by ticker symbol or company name using the SEC's public company ticker list. Returns SEC CIK and matched identifiers, not investment advice.",
     { query: z.string().min(1).max(100).describe("Company ticker or name, e.g. AAPL or Apple") },
+    { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     async ({ query }) => {
       try {
         const rows = await getTickerRows();
-        const q = query.trim().toUpperCase();
-        const exact = rows.filter((r) => r.ticker === q);
-        const matches = exact.length ? exact : rows.filter((r) =>
-          r.title.toUpperCase().includes(q) || r.ticker.includes(q)
-        ).slice(0, 10);
+        const normalized = query.trim().toUpperCase();
+        if (!normalized) {
+          return { isError: true, content: [{ type: "text", text: "Enter a company ticker or name." }] };
+        }
+        const exactTicker = rows.filter((r) => r.ticker === normalized);
+        const exactName = rows.filter((r) => r.title.trim().toUpperCase() === normalized);
+        const prefixName = rows.filter((r) => r.title.toUpperCase().startsWith(normalized));
+        const matches = exactTicker.length ? exactTicker
+          : exactName.length ? exactName
+          : prefixName.length ? prefixName.slice(0, 10)
+          : rows.filter((r) => r.title.toUpperCase().includes(normalized)).slice(0, 10);
         return { content: [{ type: "text", text: JSON.stringify({
           query,
           matches,
@@ -121,7 +134,7 @@ function buildServer() {
 
   server.tool(
     "get_sec_company_facts",
-    "Retrieve reported annual company facts from the SEC Company Facts API for a US registrant. Provides reported values and filing metadata; it does not calculate a valuation or recommend a security.",
+    "Retrieve reported annual company facts from the SEC Company Facts API for a US registrant. Revenue checks common US-GAAP concept aliases. Returns reported values, units, periods, filing metadata, and source context; it does not calculate a valuation or recommend a security.",
     {
       cik: z.string().regex(/^\d{1,10}$/).describe("SEC Central Index Key (CIK), digits only"),
       concepts: z.array(z.enum([
@@ -130,6 +143,7 @@ function buildServer() {
         "LongTermDebtCurrent", "LongTermDebtNoncurrent", "NetCashProvidedByUsedInOperatingActivities"
       ])).max(11).optional().describe("Optional list of common US-GAAP concepts; defaults to core financial metrics")
     },
+    { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     async ({ cik, concepts }) => {
       try {
         const paddedCik = cik.padStart(10, "0");
@@ -141,8 +155,29 @@ function buildServer() {
           "LongTermDebtNoncurrent", "NetCashProvidedByUsedInOperatingActivities"
         ];
         const output = {};
+        const conceptAliases = {
+          Revenue: [
+            "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "SalesRevenueNet",
+            "Revenues",
+            "SalesRevenueGoodsNet",
+            "SalesRevenueServicesNet"
+          ],
+          NetIncomeLoss: ["NetIncomeLoss"],
+          Assets: ["Assets"],
+          Liabilities: ["Liabilities"],
+          StockholdersEquity: ["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
+          OperatingIncomeLoss: ["OperatingIncomeLoss"],
+          EarningsPerShareBasic: ["EarningsPerShareBasic"],
+          CashAndCashEquivalentsAtCarryingValue: ["CashAndCashEquivalentsAtCarryingValue"],
+          LongTermDebtCurrent: ["LongTermDebtCurrent", "LongTermDebtAndFinanceLeaseObligationsCurrent"],
+          LongTermDebtNoncurrent: ["LongTermDebtNoncurrent", "LongTermDebtAndFinanceLeaseObligationsNoncurrent"],
+          NetCashProvidedByUsedInOperatingActivities: ["NetCashProvidedByUsedInOperatingActivities"]
+        };
         for (const concept of requested) {
-          const fact = data.facts?.["us-gaap"]?.[concept];
+          const candidates = conceptAliases[concept] || [concept];
+          const factEntry = candidates.map((name) => [name, data.facts?.["us-gaap"]?.[name]]).find(([, value]) => Boolean(value));
+          const [resolvedConcept, fact] = factEntry || [null, null];
           if (!fact) {
             output[concept] = { available: false, note: "Concept not present in the company's SEC company-facts payload." };
             continue;
@@ -150,6 +185,8 @@ function buildServer() {
           const units = fact.units || {};
           const unitEntries = Object.entries(units);
           output[concept] = {
+            requestedConcept: concept,
+            reportedConcept: resolvedConcept,
             label: fact.label,
             description: fact.description,
             units: Object.fromEntries(unitEntries.map(([unit, entries]) => {
@@ -184,8 +221,9 @@ function buildServer() {
           source: `${DATA_BASE}/api/xbrl/companyfacts/CIK${paddedCik}.json`,
           limitations: [
             "SEC company facts are reported data, not necessarily normalized for comparability.",
-            "Metric availability and fiscal-year presentation vary by issuer.",
-            "Verify values and context in the original 10-K/10-Q before relying on them."
+            "Metric names and availability vary by issuer; the Revenue field checks common US-GAAP revenue concepts but may not capture every industry-specific taxonomy.",
+            "Annual facts are selected from 10-K filings where the SEC provides fiscal-year metadata; amended filings and unusual fiscal periods may need manual review.",
+            "Verify values, units, segment context, and accounting presentation in the original 10-K/10-Q before relying on them."
           ]
         }, null, 2) }] };
       } catch (error) {
@@ -202,6 +240,7 @@ function buildServer() {
       market: z.enum(["US", "India", "Other", "Unknown"]).default("Unknown"),
       focus: z.enum(["full", "financials", "governance", "fraud_and_legal", "valuation", "cybersecurity"]).default("full")
     },
+    { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     async ({ company, market, focus }) => {
       const sections = {
         financials: [
@@ -231,6 +270,7 @@ function buildServer() {
         ],
         business: [
           "Explain products, customers, competitive advantage, industry structure, cyclicality, and key dependencies.",
+        "Map revenue recognition policies and segment disclosures to reported totals; check for changes in accounting definitions or discontinued operations.",
           "Assess revenue concentration, pricing power, customer retention, supply-chain exposure, and operating leverage.",
           "Identify thesis-breaking risks, contrary evidence, and questions that require further investigation."
         ]
