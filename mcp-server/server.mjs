@@ -43,8 +43,8 @@ app.get("/", (_req, res) => {
 });
 app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
 
-// OpenAI Apps domain verification challenge. Configure the token in the host
-// environment as OPENAI_APPS_CHALLENGE; never commit the token itself.
+// OpenAI Apps domain verification challenge. Store the token only in the host's
+// environment variables (OPENAI_APPS_CHALLENGE); never commit the token itself.
 app.get("/.well-known/openai-apps-challenge", (_req, res) => {
   const challenge = process.env.OPENAI_APPS_CHALLENGE;
   if (!challenge) {
