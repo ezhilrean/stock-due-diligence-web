@@ -43,6 +43,16 @@ app.get("/", (_req, res) => {
 });
 app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
 
+// OpenAI Apps domain verification challenge. Configure the token in the host
+// environment as OPENAI_APPS_CHALLENGE; never commit the token itself.
+app.get("/.well-known/openai-apps-challenge", (_req, res) => {
+  const challenge = process.env.OPENAI_APPS_CHALLENGE;
+  if (!challenge) {
+    return res.status(503).type("text/plain").send("OPENAI_APPS_CHALLENGE is not configured.\\n");
+  }
+  return res.status(200).type("text/plain").send(challenge);
+});
+
 async function secFetch(url) {
   if (!SEC_USER_AGENT) {
     throw new Error("SEC data tools are not configured yet. Set SEC_USER_AGENT to an identifying application name and contact email.");
